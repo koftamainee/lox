@@ -1,0 +1,37 @@
+---
+Language: C
+BasedOnStyle: LLVM
+AlignConsecutiveDeclarations: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: Never
+BraceWrapping:
+  AfterControlStatement: Never
+  BeforeElse: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+BreakBeforeBraces: Custom
+ColumnLimit: 120
+ContinuationIndentWidth: 2
+DerivePointerAlignment: false
+IndentCaseLabels: true
+IncludeCategories:
+  - Regex: '^"'
+    Priority: 1
+  - Regex: '^<.*'
+    Priority: 2
+  - Regex: '.*'
+    Priority: 3
+InsertBraces: true
+InsertNewlineAtEOF: true
+MaxEmptyLinesToKeep: 2
+PointerAlignment: Right
+ReflowComments: false
+SortIncludes: false
+SpaceInEmptyParentheses: false
+SpacesInAngles: false
+SpacesInConditionalStatement: false
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+TabWidth: 2
+IndentWidth: 2

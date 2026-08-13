@@ -9,7 +9,9 @@ import (
 )
 
 const (
+	Success           = 0
 	WrongArgsCountErr = 64
+	DataFormatErr     = 65
 	GLoxInternalErr   = 70
 )
 
@@ -19,7 +21,7 @@ func main() {
 		os.Exit(WrongArgsCountErr)
 	}
 
-	lox, err := lox.Init()
+	lox, err := lox.New()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "glox encountered fatal error during initialization: %e\n", err)
 		os.Exit(GLoxInternalErr)
@@ -30,14 +32,20 @@ func main() {
 	} else {
 		runPrompt(&lox)
 	}
+
+	if lox.ErrorReporter.HadError {
+		os.Exit(DataFormatErr)
+	}
+
+	os.Exit(Success)
 }
 
 func runFile(path string, lox *lox.Lox) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
-		lox.InternalError(fmt.Errorf("failed to open file %s: %v", path, err).Error())
+		lox.ErrorReporter.InternalError(fmt.Errorf("failed to open file %s: %v", path, err).Error())
 	}
-	lox.Run(bytes)
+	lox.Run(string(bytes))
 }
 
 func runPrompt(lox *lox.Lox) {
@@ -51,11 +59,8 @@ func runPrompt(lox *lox.Lox) {
 			fmt.Println("\nsee you soon~")
 			break
 		}
-		line := scanner.Bytes()
+		line := scanner.Text()
 		lox.Run(line)
+		lox.ErrorReporter.HadError = false
 	}
-}
-
-func run(bytes []byte) error {
-	return nil
 }

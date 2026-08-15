@@ -18,6 +18,8 @@ const (
 
 	// One or two character tokens.
 	Bang         Type = "BANG"
+	Question     Type = "QUESTION"
+	Colon        Type = "COLON"
 	BangEqual    Type = "BANG_EQUAL"
 	Equal        Type = "EQUAL"
 	EqualEqual   Type = "EQUAL_EQUAL"

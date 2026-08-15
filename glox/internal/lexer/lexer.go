@@ -67,6 +67,10 @@ func (l *Lexer) scanToken() {
 		l.addToken(token.Semicolon)
 	case '*':
 		l.addToken(token.Star)
+	case '?':
+		l.addToken(token.Question)
+	case ':':
+		l.addToken(token.Colon)
 	case '!':
 		if l.match('=') {
 			l.addToken(token.BangEqual)

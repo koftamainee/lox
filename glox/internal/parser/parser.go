@@ -107,7 +107,44 @@ func (p *Parser) previous() token.Token {
 }
 
 func (p *Parser) expression() (ast.Expression, error) {
-	return p.equality()
+	return p.comma()
+}
+
+func (p *Parser) comma() (ast.Expression, error) {
+	return p.binaryExprLA(p.ternary, token.Comma)
+}
+
+// ternary -> equality ("?" expression ":" ternary)?
+func (p *Parser) ternary() (ast.Expression, error) {
+	expr, err := p.equality()
+	if err != nil {
+		return nil, err
+	}
+
+	if p.match(token.Question) {
+		thenBranch, err := p.expression()
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = p.consume(token.Colon, "Excpect ':' after then branch of conditional expression.")
+		if err != nil {
+			return nil, err
+		}
+
+		elseBranch, err := p.ternary()
+		if err != nil {
+			return nil, err
+		}
+
+		expr = &ast.Conditional{
+			Condition: expr,
+			Then:      thenBranch,
+			Else:      elseBranch,
+		}
+	}
+
+	return expr, nil
 }
 
 func (p *Parser) binaryExprLA(

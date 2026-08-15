@@ -67,6 +67,23 @@ func (p *Parser) sync() {
 	}
 }
 
+func (p *Parser) binaryOpErrProd(op token.Type) (func() (ast.Expression, error), bool) {
+	switch op {
+	case token.Comma:
+		return p.ternary, true
+	case token.BangEqual, token.EqualEqual:
+		return p.comparison, true
+	case token.Greater, token.GreaterEqual, token.Less, token.LessEqual:
+		return p.term, true
+	case token.Plus, token.Minus:
+		return p.factor, true
+	case token.Star, token.Slash:
+		return p.unary, true
+	}
+
+	return nil, false
+}
+
 func (p *Parser) match(types ...token.Type) bool {
 	for _, token_type := range types {
 		if p.check(token_type) {
@@ -190,7 +207,7 @@ func (p *Parser) factor() (ast.Expression, error) {
 }
 
 func (p *Parser) unary() (ast.Expression, error) {
-	if p.match(token.Bang, token.Equal) {
+	if p.match(token.Bang, token.Minus) {
 		operator := p.previous()
 		operand, err := p.unary()
 		if err != nil {
@@ -235,7 +252,15 @@ func (p *Parser) primary() (ast.Expression, error) {
 		return &ast.Grouping{Expr: expr}, nil
 	}
 
-	return nil, p.error(p.peek(), "Except expression")
+	operand, ok := p.binaryOpErrProd(p.peek().TokenType)
+	if ok {
+		p.advance()
+		p.error(p.previous(), "Expect expression.")
+		return operand()
+
+	}
+
+	return nil, p.error(p.peek(), "Expect expression.")
 }
 
 func (p *Parser) consume(token_type token.Type, message string) (token.Token, error) {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/koftamainee/lox/glox/internal/lexer"
 	"github.com/koftamainee/lox/glox/internal/parser"
+	"github.com/koftamainee/lox/glox/internal/token"
 )
 
 type LoxErrorReporter struct {
@@ -26,7 +27,7 @@ func (l *Lox) Run(bytes string) error {
 	lex := lexer.New(bytes, &l.ErrorReporter)
 	tokens := lex.ScanTokens()
 
-	parse := parser.New(tokens)
+	parse := parser.New(tokens, &l.ErrorReporter)
 	expr := parse.Parse()
 
 	fmt.Println(expr)
@@ -36,6 +37,14 @@ func (l *Lox) Run(bytes string) error {
 
 func (r *LoxErrorReporter) Error(line int, message string) {
 	r.report(line, "", message)
+}
+
+func (r *LoxErrorReporter) ErrorAt(t token.Token, message string) {
+	if t.TokenType == token.EOF {
+		r.report(t.Line, "at end", message)
+	} else {
+		r.report(t.Line, fmt.Sprintf("at '%s'", t.Lexeme), message)
+	}
 }
 
 func (r *LoxErrorReporter) InternalError(message string) {

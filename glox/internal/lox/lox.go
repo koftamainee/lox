@@ -23,7 +23,7 @@ func New() (Lox, error) {
 			HadError: false}}, nil
 }
 
-func (l *Lox) Run(bytes string) error {
+func (l *Lox) Run(bytes string) {
 	lex := lexer.New(bytes, &l.ErrorReporter)
 	tokens := lex.ScanTokens()
 
@@ -32,7 +32,6 @@ func (l *Lox) Run(bytes string) error {
 
 	fmt.Println(expr)
 
-	return nil
 }
 
 func (r *LoxErrorReporter) Error(line int, message string) {

@@ -131,7 +131,6 @@ func (p *Parser) comma() (ast.Expression, error) {
 	return p.binaryExprLA(p.ternary, token.Comma)
 }
 
-// ternary -> equality ("?" expression ":" ternary)?
 func (p *Parser) ternary() (ast.Expression, error) {
 	expr, err := p.equality()
 	if err != nil {

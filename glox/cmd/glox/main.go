@@ -12,7 +12,7 @@ const (
 	Success           = 0
 	WrongArgsCountErr = 64
 	DataFormatErr     = 65
-	GLoxInternalErr   = 70
+	RuntimeErr        = 70
 )
 
 func main() {
@@ -24,7 +24,7 @@ func main() {
 	lox, err := lox.New()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "glox encountered fatal error during initialization: %e\n", err)
-		os.Exit(GLoxInternalErr)
+		os.Exit(RuntimeErr)
 	}
 
 	if len(os.Args) == 2 {
@@ -35,6 +35,11 @@ func main() {
 
 	if lox.ErrorReporter.HadError {
 		os.Exit(DataFormatErr)
+	}
+
+	if lox.ErrorReporter.HadRuntimeError {
+		os.Exit(RuntimeErr)
+
 	}
 
 	os.Exit(Success)
@@ -62,5 +67,6 @@ func runPrompt(lox *lox.Lox) {
 		line := scanner.Text()
 		lox.Run(line)
 		lox.ErrorReporter.HadError = false
+		lox.ErrorReporter.HadRuntimeError = false
 	}
 }

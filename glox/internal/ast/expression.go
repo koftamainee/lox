@@ -64,6 +64,7 @@ func (l *Literal) String() string {
 		res = fmt.Sprintf("%v", l.Value)
 	}
 
+	return res
 }
 
 func (u *Unary) String() string {

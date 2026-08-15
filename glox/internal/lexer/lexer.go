@@ -254,7 +254,7 @@ func (l *Lexer) addToken(tokenType token.Type) {
 	l.addTokenWithLiteral(tokenType, nil)
 }
 
-func (l *Lexer) addTokenWithLiteral(tokenType token.Type, literal token.Object) {
+func (l *Lexer) addTokenWithLiteral(tokenType token.Type, literal any) {
 	text := l.source[l.start:l.current]
 	l.tokens = append(l.tokens, token.New(tokenType, text, literal, l.line))
 }

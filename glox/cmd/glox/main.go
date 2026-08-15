@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/koftamainee/lox/glox/internal/ast"
 	"github.com/koftamainee/lox/glox/internal/lox"
+	"github.com/koftamainee/lox/glox/internal/token"
 )
 
 const (
@@ -16,6 +18,24 @@ const (
 )
 
 func main() {
+
+	minus_123 := ast.Unary{
+		Operator: token.New(token.Minus, "-", nil, 1),
+		Operand:  &ast.Literal{Value: 123},
+	}
+
+	group45_67 := ast.Grouping{
+		Expr: &ast.Literal{Value: 45.67},
+	}
+
+	expr := ast.Binary{
+		Left:     &minus_123,
+		Operator: token.New(token.Star, "*", nil, 1),
+		Right:    &group45_67,
+	}
+
+	fmt.Printf("%s\n", expr.String())
+
 	if len(os.Args) > 2 {
 		fmt.Println("Usage glox [script]")
 		os.Exit(WrongArgsCountErr)

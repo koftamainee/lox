@@ -2,16 +2,14 @@ package token
 
 import "fmt"
 
-type Object = any
-
 type Token struct {
 	TokenType Type
 	Lexeme    string
-	Literal   Object
+	Literal   any
 	Line      int
 }
 
-func New(token_type Type, lexeme string, literal Object, line int) Token {
+func New(token_type Type, lexeme string, literal any, line int) Token {
 	return Token{
 		TokenType: token_type,
 		Lexeme:    lexeme,

@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/koftamainee/lox/glox/internal/lexer"
+	"github.com/koftamainee/lox/glox/internal/parser"
 )
 
 type LoxErrorReporter struct {
@@ -25,9 +26,10 @@ func (l *Lox) Run(bytes string) error {
 	lex := lexer.New(bytes, &l.ErrorReporter)
 	tokens := lex.ScanTokens()
 
-	for _, t := range tokens {
-		fmt.Println(t)
-	}
+	parse := parser.New(tokens)
+	expr := parse.Parse()
+
+	fmt.Println(expr)
 
 	return nil
 }

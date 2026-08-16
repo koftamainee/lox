@@ -19,6 +19,12 @@ type VarStatement struct {
 	Initializer Expression
 }
 
+type FunStatement struct {
+	Name   token.Token
+	Params []token.Token
+	Body   []Statement
+}
+
 type BlockStatement struct {
 	Statements []Statement
 }
@@ -43,3 +49,4 @@ func (e *BlockStatement) statementImpl()      {}
 func (e *IfStatement) statementImpl()         {}
 func (e *WhileStatement) statementImpl()      {}
 func (e *BreakStatement) statementImpl()      {}
+func (e *FunStatement) statementImpl()        {}

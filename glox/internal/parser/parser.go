@@ -148,6 +148,14 @@ func (p *Parser) previous() token.Token {
 }
 
 func (p *Parser) declaration() ast.Statement {
+	if p.match(token.Fun) {
+		st, err := p.funDeclaration("function")
+		if err != nil {
+			p.sync()
+			return nil
+		}
+		return st
+	}
 	if p.match(token.Var) {
 		st, err := p.varDeclaration()
 		if err != nil {
@@ -165,8 +173,59 @@ func (p *Parser) declaration() ast.Statement {
 	return st
 }
 
+func (p *Parser) funDeclaration(kind string) (ast.Statement, error) {
+	name, err := p.consume(token.Identifier, fmt.Sprintf("Expect %s name", kind))
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.consume(token.LeftParen, fmt.Sprintf("Expect '(' after %s name", kind))
+	if err != nil {
+		return nil, err
+	}
+
+	params := make([]token.Token, 0)
+	for {
+		if len(params) >= 255 {
+			err := p.error(p.peek(), "Can't have more than 255 parameters")
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		param, err := p.consume(token.Identifier, "Expect parameter name")
+		if err != nil {
+			return nil, err
+		}
+
+		params = append(params, param)
+
+		if !p.match(token.Comma) {
+			break
+		}
+	}
+
+	_, err = p.consume(token.RightParen, fmt.Sprintf("Expect ')' after %s parameters", kind))
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.consume(token.LeftBrace, fmt.Sprintf("Expect '{' before %s body", kind))
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.FunStatement{Name: name, Params: params, Body: body}, nil
+
+}
+
 func (p *Parser) varDeclaration() (ast.Statement, error) {
-	name, err := p.consume(token.Identifier, "Expect variable name.") // TODO
+	name, err := p.consume(token.Identifier, "Expect variable name.")
 	if err != nil {
 		return nil, err
 	}
@@ -578,7 +637,56 @@ func (p *Parser) unary() (ast.Expression, error) {
 		}, nil
 	}
 
-	return p.primary()
+	return p.call()
+}
+
+func (p *Parser) call() (ast.Expression, error) {
+	expr, err := p.primary()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		if p.match(token.LeftParen) {
+			expr, err = p.finishCall(expr)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			break
+		}
+	}
+
+	return expr, nil
+}
+
+func (p *Parser) finishCall(callee ast.Expression) (ast.Expression, error) {
+	args := make([]ast.Expression, 0)
+
+	if !p.check(token.RightParen) {
+		for {
+			if len(args) >= 255 {
+				// NOTE(koftamainee): do not return error, parser still in valid state
+				_ = p.error(p.peek(), "Can't have more than 255 arguments")
+			}
+			// NOTE(koftamainee): skipping comma operator here
+			expr, err := p.assignment()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, expr)
+
+			if !p.match(token.Comma) {
+				break
+			}
+		}
+	}
+	paren, err := p.consume(token.RightParen, "Expect ')' after arguments")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.CallExpression{Callee: callee, Paren: paren, Arguments: args}, nil
 }
 
 func (p *Parser) primary() (ast.Expression, error) {

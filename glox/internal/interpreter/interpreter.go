@@ -24,13 +24,17 @@ func (e RuntimeError) Error() string {
 type Interpreter struct {
 	errors errrp.ErrorReporter
 
-	env *environment.Environment
+	globals    *environment.Environment
+	currentEnv *environment.Environment
 }
 
 func New(errors errrp.ErrorReporter) Interpreter {
+	globals := environment.New(nil)
+	defineGlobals(globals)
 	return Interpreter{
-		errors: errors,
-		env:    environment.New(nil),
+		errors:     errors,
+		globals:    globals,
+		currentEnv: globals,
 	}
 }
 
@@ -72,17 +76,25 @@ func (i *Interpreter) executeStatement(st ast.Statement) error {
 	case *ast.VarStatement:
 		return i.execVarStmt(s)
 	case *ast.BlockStatement:
-		return i.execBlockStmt(s, environment.New(i.env))
+		return i.execBlockStmt(s, environment.New(i.currentEnv))
 	case *ast.IfStatement:
 		return i.execIfStmt(s)
 	case *ast.WhileStatement:
 		return i.execWhileStmt(s)
 	case *ast.BreakStatement:
 		return i.execBreakStmt(s)
+	case *ast.FunStatement:
+		return i.execFunStmt(s)
 
 	default:
 		return errors.New("invalid statement type")
 	}
+}
+
+func (i *Interpreter) execFunStmt(st *ast.FunStatement) error {
+	function := loxFunction{Declaration: st}
+	i.currentEnv.Define(st.Name.Lexeme, function)
+	return nil
 }
 
 func (i *Interpreter) execBreakStmt(st *ast.BreakStatement) error {
@@ -135,10 +147,10 @@ func (i *Interpreter) execIfStmt(st *ast.IfStatement) error {
 }
 
 func (i *Interpreter) execBlockStmt(st *ast.BlockStatement, env *environment.Environment) error {
-	previousEnv := i.env
+	previousEnv := i.currentEnv
 
-	i.env = env
-	defer func() { i.env = previousEnv }()
+	i.currentEnv = env
+	defer func() { i.currentEnv = previousEnv }()
 
 	for _, st := range st.Statements {
 		err := i.executeStatement(st)
@@ -170,9 +182,9 @@ func (i *Interpreter) execVarStmt(st *ast.VarStatement) error {
 		if err != nil {
 			return err
 		}
-		i.env.Define(st.Name.Lexeme, value)
+		i.currentEnv.Define(st.Name.Lexeme, value)
 	} else {
-		i.env.Declare(st.Name.Lexeme)
+		i.currentEnv.Declare(st.Name.Lexeme)
 	}
 
 	return nil
@@ -196,10 +208,42 @@ func (i *Interpreter) evaluateExpression(expr ast.Expression) (any, error) {
 		return i.evalAssignmentExpr(e)
 	case *ast.LogicalExpression:
 		return i.evalLogicalExpr(e)
+	case *ast.CallExpression:
+		return i.evalCallExpr(e)
 
 	default:
 		return nil, errors.New("invalid expression type")
 	}
+}
+
+func (i *Interpreter) evalCallExpr(expr *ast.CallExpression) (any, error) {
+	callee, err := i.evaluateExpression(expr.Callee)
+	if err != nil {
+		return nil, err
+	}
+
+	args := make([]any, len(expr.Arguments))
+	for index, arg := range expr.Arguments {
+		argv, err := i.evaluateExpression(arg)
+		if err != nil {
+			return nil, err
+		}
+		args[index] = argv
+	}
+
+	callable, ok := callee.(loxCallable)
+	if !ok {
+		return nil, i.error(expr.Paren, "Expected Object to be LoxCallable")
+	}
+
+	expectedArgs := callable.Arity()
+	gotArgs := len(args)
+
+	if expectedArgs != gotArgs {
+		return nil, i.error(expr.Paren, fmt.Sprintf("Expected %d arguments but got %d", expectedArgs, gotArgs))
+	}
+
+	return callable.Call(i, args), nil
 }
 
 func (i *Interpreter) evalLogicalExpr(expr *ast.LogicalExpression) (any, error) {
@@ -225,10 +269,10 @@ func (i *Interpreter) evalAssignmentExpr(expr *ast.AssignmentExpression) (any, e
 	if err != nil {
 		return nil, err
 	}
-	err = i.env.Assign(expr.Name, value)
+	err = i.currentEnv.Assign(expr.Name, value)
 	if err != nil {
 		if errors.Is(err, environment.ErrUndeclared) {
-			return nil, rtError(expr.Name, "Variable is undeclared")
+			return nil, i.error(expr.Name, "Variable is undeclared")
 		}
 		return nil, err
 	}
@@ -237,12 +281,12 @@ func (i *Interpreter) evalAssignmentExpr(expr *ast.AssignmentExpression) (any, e
 }
 
 func (i *Interpreter) evalVariableExpr(expr *ast.VariableExpression) (any, error) {
-	value, err := i.env.Get(expr.Name)
+	value, err := i.currentEnv.Get(expr.Name)
 	if err != nil {
 		if errors.Is(err, environment.ErrUndefined) {
-			return nil, rtError(expr.Name, "Accessing undefined variable. Please assign value to it")
+			return nil, i.error(expr.Name, "Accessing undefined variable. Please assign value to it")
 		} else if errors.Is(err, environment.ErrUndeclared) {
-			return nil, rtError(expr.Name, "Accessing undeclared variable.")
+			return nil, i.error(expr.Name, "Accessing undeclared variable.")
 		}
 		// NOTE(koftamainee): propagating all possible internal errors
 		return nil, err
@@ -270,11 +314,11 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 
 	switch expr.Operator.TokenType {
 	case token.Minus:
-		leftv, err := checkNumber(expr.Operator, left)
+		leftv, err := i.checkNumber(expr.Operator, left)
 		if err != nil {
 			return nil, err
 		}
-		rightv, err := checkNumber(expr.Operator, right)
+		rightv, err := i.checkNumber(expr.Operator, right)
 		if err != nil {
 			return nil, err
 		}
@@ -282,11 +326,11 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 		return leftv - rightv, nil
 
 	case token.Star:
-		leftv, err := checkNumber(expr.Operator, left)
+		leftv, err := i.checkNumber(expr.Operator, left)
 		if err != nil {
 			return nil, err
 		}
-		rightv, err := checkNumber(expr.Operator, right)
+		rightv, err := i.checkNumber(expr.Operator, right)
 		if err != nil {
 			return nil, err
 		}
@@ -294,11 +338,11 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 		return leftv * rightv, nil
 
 	case token.Slash:
-		leftv, err := checkNumber(expr.Operator, left)
+		leftv, err := i.checkNumber(expr.Operator, left)
 		if err != nil {
 			return nil, err
 		}
-		rightv, err := checkNumber(expr.Operator, right)
+		rightv, err := i.checkNumber(expr.Operator, right)
 		if err != nil {
 			return nil, err
 		}
@@ -310,7 +354,7 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 		if ok {
 			rightv, ok := right.(float64)
 			if !ok {
-				return nil, rtError(expr.Operator, "Operands must be two numbers or two strings")
+				return nil, i.error(expr.Operator, "Operands must be two numbers or two strings")
 			}
 			return leftv + rightv, nil
 		}
@@ -318,20 +362,20 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 		if ok {
 			rights, ok := right.(string)
 			if !ok {
-				return nil, rtError(expr.Operator, "Operands must be two numbers or two strings")
+				return nil, i.error(expr.Operator, "Operands must be two numbers or two strings")
 			}
 
 			return fmt.Sprintf("%s%s", lefts, rights), nil
 		} else {
-			return nil, rtError(expr.Operator, "Operands must be two numbers or two strings")
+			return nil, i.error(expr.Operator, "Operands must be two numbers or two strings")
 		}
 
 	case token.Greater:
-		leftv, err := checkNumber(expr.Operator, left)
+		leftv, err := i.checkNumber(expr.Operator, left)
 		if err != nil {
 			return nil, err
 		}
-		rightv, err := checkNumber(expr.Operator, right)
+		rightv, err := i.checkNumber(expr.Operator, right)
 		if err != nil {
 			return nil, err
 		}
@@ -339,11 +383,11 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 		return leftv > rightv, nil
 
 	case token.GreaterEqual:
-		leftv, err := checkNumber(expr.Operator, left)
+		leftv, err := i.checkNumber(expr.Operator, left)
 		if err != nil {
 			return nil, err
 		}
-		rightv, err := checkNumber(expr.Operator, right)
+		rightv, err := i.checkNumber(expr.Operator, right)
 		if err != nil {
 			return nil, err
 		}
@@ -351,11 +395,11 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 		return leftv >= rightv, nil
 
 	case token.Less:
-		leftv, err := checkNumber(expr.Operator, left)
+		leftv, err := i.checkNumber(expr.Operator, left)
 		if err != nil {
 			return nil, err
 		}
-		rightv, err := checkNumber(expr.Operator, right)
+		rightv, err := i.checkNumber(expr.Operator, right)
 		if err != nil {
 			return nil, err
 		}
@@ -363,11 +407,11 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 		return leftv < rightv, nil
 
 	case token.LessEqual:
-		leftv, err := checkNumber(expr.Operator, left)
+		leftv, err := i.checkNumber(expr.Operator, left)
 		if err != nil {
 			return nil, err
 		}
-		rightv, err := checkNumber(expr.Operator, right)
+		rightv, err := i.checkNumber(expr.Operator, right)
 		if err != nil {
 			return nil, err
 		}
@@ -383,7 +427,7 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 	case token.Comma:
 		return right, nil
 	default:
-		return nil, rtError(expr.Operator, fmt.Sprintf("Invalid operator: '%s'", expr.Operator.Lexeme))
+		return nil, i.error(expr.Operator, fmt.Sprintf("Invalid operator: '%s'", expr.Operator.Lexeme))
 	}
 
 }
@@ -400,13 +444,13 @@ func (i *Interpreter) evalUnaryExpr(expr *ast.UnaryExpression) (any, error) {
 		case float64:
 			return -v, nil
 		default:
-			return nil, rtError(expr.Operator, fmt.Sprintf("Invalid operator '%s' on value '%v'", expr.Operator.Lexeme, v))
+			return nil, i.error(expr.Operator, fmt.Sprintf("Invalid operator '%s' on value '%v'", expr.Operator.Lexeme, v))
 		}
 	case token.Bang:
 		// NOTE(koftamainee): every value other then nil and false are true. this is questionable desision
 		return !isTruthy(value), nil
 	default:
-		return nil, rtError(expr.Operator, fmt.Sprintf("Invalid operator: '%s'", expr.Operator.Lexeme))
+		return nil, i.error(expr.Operator, fmt.Sprintf("Invalid operator: '%s'", expr.Operator.Lexeme))
 	}
 }
 
@@ -422,7 +466,7 @@ func (i *Interpreter) evalConditionalExpr(expr *ast.ConditionalExpression) (any,
 	}
 }
 
-func rtError(token token.Token, msg string) RuntimeError {
+func (i *Interpreter) error(token token.Token, msg string) RuntimeError {
 	return RuntimeError{
 		Token: token,
 		Msg:   msg,
@@ -449,11 +493,11 @@ func isEqual(left any, right any) bool {
 	return left == right
 }
 
-func checkNumber(operator token.Token, operand any) (float64, error) {
+func (i *Interpreter) checkNumber(operator token.Token, operand any) (float64, error) {
 	switch v := operand.(type) {
 	case float64:
 		return v, nil
 	default:
-		return 0, rtError(operator, "Operand must be a number")
+		return 0, i.error(operator, "Operand must be a number")
 	}
 }

@@ -45,6 +45,12 @@ type AssignmentExpression struct {
 	Value Expression
 }
 
+type LogicalExpression struct {
+	Left     Expression
+	Operator token.Token
+	Right    Expression
+}
+
 func (e *BinaryExpression) exprImpl()      {}
 func (e *GroupingExpression) exprImpl()    {}
 func (e *LiteralExpression) exprImpl()     {}
@@ -52,8 +58,13 @@ func (e *UnaryExpression) exprImpl()       {}
 func (e *ConditionalExpression) exprImpl() {}
 func (e *VariableExpression) exprImpl()    {}
 func (e *AssignmentExpression) exprImpl()  {}
+func (e *LogicalExpression) exprImpl()     {}
 
 func (b *BinaryExpression) String() string {
+	return fmt.Sprintf("(%s %s %s)", b.Operator.Lexeme, b.Left.String(), b.Right.String())
+}
+
+func (b *LogicalExpression) String() string {
 	return fmt.Sprintf("(%s %s %s)", b.Operator.Lexeme, b.Left.String(), b.Right.String())
 }
 

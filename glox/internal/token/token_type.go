@@ -50,6 +50,7 @@ const (
 	True   Type = "TRUE"
 	Var    Type = "VAR"
 	While  Type = "WHILE"
+	Break  Type = "BREAK"
 
 	EOF Type = "EOF"
 )

@@ -10,6 +10,8 @@ import (
 	"github.com/koftamainee/lox/glox/internal/token"
 )
 
+var breakSt = errors.New("break")
+
 type RuntimeError struct {
 	Token token.Token
 	Msg   string
@@ -71,10 +73,65 @@ func (i *Interpreter) executeStatement(st ast.Statement) error {
 		return i.execVarStmt(s)
 	case *ast.BlockStatement:
 		return i.execBlockStmt(s, environment.New(i.env))
+	case *ast.IfStatement:
+		return i.execIfStmt(s)
+	case *ast.WhileStatement:
+		return i.execWhileStmt(s)
+	case *ast.BreakStatement:
+		return i.execBreakStmt(s)
 
 	default:
 		return errors.New("invalid statement type")
 	}
+}
+
+func (i *Interpreter) execBreakStmt(st *ast.BreakStatement) error {
+	_ = st
+	return breakSt
+}
+
+func (i *Interpreter) execWhileStmt(st *ast.WhileStatement) error {
+
+	for {
+		condition, err := i.evaluateExpression(st.Condition)
+		if err != nil {
+			return err
+		}
+		if !isTruthy(condition) {
+			break
+		}
+
+		err = i.executeStatement(st.Body)
+		if err != nil {
+			if errors.Is(err, breakSt) {
+				break
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *Interpreter) execIfStmt(st *ast.IfStatement) error {
+	cond, err := i.evaluateExpression(st.Condition)
+	if err != nil {
+		return err
+	}
+
+	if isTruthy(cond) {
+		err := i.executeStatement(st.ThenBranch)
+		if err != nil {
+			return err
+		}
+	} else if st.ElseBranch != nil {
+		err := i.executeStatement(st.ElseBranch)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (i *Interpreter) execBlockStmt(st *ast.BlockStatement, env *environment.Environment) error {
@@ -137,10 +194,30 @@ func (i *Interpreter) evaluateExpression(expr ast.Expression) (any, error) {
 		return i.evalVariableExpr(e)
 	case *ast.AssignmentExpression:
 		return i.evalAssignmentExpr(e)
+	case *ast.LogicalExpression:
+		return i.evalLogicalExpr(e)
 
 	default:
 		return nil, errors.New("invalid expression type")
 	}
+}
+
+func (i *Interpreter) evalLogicalExpr(expr *ast.LogicalExpression) (any, error) {
+	left, err := i.evaluateExpression(expr.Left)
+	if err != nil {
+		return nil, err
+	}
+
+	if expr.Operator.TokenType == token.Or {
+		if isTruthy(left) {
+			return left, nil
+		}
+	} else { // token.And
+		if !isTruthy(left) {
+			return left, nil
+		}
+	}
+	return i.evaluateExpression(expr.Right)
 }
 
 func (i *Interpreter) evalAssignmentExpr(expr *ast.AssignmentExpression) (any, error) {

@@ -23,7 +23,23 @@ type BlockStatement struct {
 	Statements []Statement
 }
 
+type IfStatement struct {
+	Condition  Expression
+	ThenBranch Statement
+	ElseBranch Statement
+}
+
+type WhileStatement struct {
+	Condition Expression
+	Body      Statement
+}
+
+type BreakStatement struct{}
+
 func (e *ExpressionStatement) statementImpl() {}
 func (e *PrintStatement) statementImpl()      {}
 func (e *VarStatement) statementImpl()        {}
 func (e *BlockStatement) statementImpl()      {}
+func (e *IfStatement) statementImpl()         {}
+func (e *WhileStatement) statementImpl()      {}
+func (e *BreakStatement) statementImpl()      {}

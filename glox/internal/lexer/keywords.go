@@ -19,4 +19,5 @@ var keywords = map[string]token.Type{
 	"true":   token.True,
 	"var":    token.Var,
 	"while":  token.While,
+	"break":  token.Break,
 }

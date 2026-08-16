@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 
+	"github.com/chzyer/readline"
 	"github.com/koftamainee/lox/glox/internal/lox"
 )
 
@@ -21,12 +21,7 @@ func main() {
 		os.Exit(WrongArgsCountErr)
 	}
 
-	lox, err := lox.New()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "glox encountered fatal error during initialization: %e\n", err)
-		os.Exit(RuntimeErr)
-	}
-
+	lox := lox.New()
 	if len(os.Args) == 2 {
 		runFile(os.Args[1], &lox)
 	} else {
@@ -54,17 +49,21 @@ func runFile(path string, lox *lox.Lox) {
 }
 
 func runPrompt(lox *lox.Lox) {
-	scanner := bufio.NewScanner(os.Stdin)
-
 	fmt.Println("glox v0.1.0")
 
+	rl, err := readline.New("> ")
+	if err != nil {
+		lox.ErrorReporter.InternalError("failed to create readline")
+		return
+	}
+	defer rl.Close()
+
 	for {
-		fmt.Print("> ")
-		if !scanner.Scan() {
-			fmt.Println("\nsee you soon~")
+		line, err := rl.Readline()
+		if err != nil {
+			fmt.Println("see you soon~")
 			break
 		}
-		line := scanner.Text()
 		lox.Run(line)
 		lox.ErrorReporter.HadError = false
 		lox.ErrorReporter.HadRuntimeError = false

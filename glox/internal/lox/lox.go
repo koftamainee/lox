@@ -21,7 +21,7 @@ type Lox struct {
 	interpreter interpreter.Interpreter
 }
 
-func New() (Lox, error) {
+func New() Lox {
 	err := LoxErrorReporter{
 		HadError:        false,
 		HadRuntimeError: false,
@@ -30,7 +30,7 @@ func New() (Lox, error) {
 	return Lox{
 		ErrorReporter: &err,
 		interpreter:   interpreter,
-	}, nil
+	}
 
 }
 

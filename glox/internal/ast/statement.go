@@ -19,6 +19,11 @@ type VarStatement struct {
 	Initializer Expression
 }
 
+type BlockStatement struct {
+	Statements []Statement
+}
+
 func (e *ExpressionStatement) statementImpl() {}
 func (e *PrintStatement) statementImpl()      {}
 func (e *VarStatement) statementImpl()        {}
+func (e *BlockStatement) statementImpl()      {}

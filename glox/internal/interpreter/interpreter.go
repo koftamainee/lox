@@ -22,13 +22,13 @@ func (e RuntimeError) Error() string {
 type Interpreter struct {
 	errors errrp.ErrorReporter
 
-	env environment.Environment
+	env *environment.Environment
 }
 
 func New(errors errrp.ErrorReporter) Interpreter {
 	return Interpreter{
 		errors: errors,
-		env:    environment.New(),
+		env:    environment.New(nil),
 	}
 }
 
@@ -58,11 +58,27 @@ func (i *Interpreter) executeStatement(st ast.Statement) error {
 		return i.execPrintStmt(s)
 	case *ast.VarStatement:
 		return i.execVarStmt(s)
+	case *ast.BlockStatement:
+		return i.execBlockStmt(s, environment.New(i.env))
 
 	default:
 		return errors.New("invalid statement type")
 	}
+}
 
+func (i *Interpreter) execBlockStmt(st *ast.BlockStatement, env *environment.Environment) error {
+	previousEnv := i.env
+
+	i.env = env
+	defer func() { i.env = previousEnv }()
+
+	for _, st := range st.Statements {
+		err := i.executeStatement(st)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (i *Interpreter) execExpressionStmt(st *ast.ExpressionStatement) error {

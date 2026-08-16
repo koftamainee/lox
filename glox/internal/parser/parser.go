@@ -179,8 +179,36 @@ func (p *Parser) statement() (ast.Statement, error) {
 	if p.match(token.Print) {
 		return p.printStatement()
 	}
+	if p.match(token.LeftBrace) {
+		return p.blockStatement()
+	}
 
 	return p.expressionStatement()
+}
+
+func (p *Parser) blockStatement() (ast.Statement, error) {
+	statements, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+	return &ast.BlockStatement{Statements: statements}, nil
+}
+
+func (p *Parser) block() ([]ast.Statement, error) {
+	statements := make([]ast.Statement, 0)
+	for !p.check(token.RightBrace) && !p.isAtEnd() {
+		st := p.declaration()
+		if st != nil {
+			statements = append(statements, st)
+		}
+	}
+
+	_, err := p.consume(token.RightBrace, "Expect '}' after block")
+	if err != nil {
+		return nil, err
+	}
+
+	return statements, nil
 }
 
 func (p *Parser) printStatement() (ast.Statement, error) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/koftamainee/lox/glox/internal/ast"
+	"github.com/koftamainee/lox/glox/internal/environment"
 	errrp "github.com/koftamainee/lox/glox/internal/error"
 	"github.com/koftamainee/lox/glox/internal/token"
 )
@@ -20,55 +21,140 @@ func (e RuntimeError) Error() string {
 
 type Interpreter struct {
 	errors errrp.ErrorReporter
+
+	env environment.Environment
 }
 
 func New(errors errrp.ErrorReporter) Interpreter {
 	return Interpreter{
 		errors: errors,
+		env:    environment.New(),
 	}
 }
 
-func (i *Interpreter) Interpret(expr ast.Expression) any {
-	value, err := i.evaluateExpression(expr)
-	if err != nil {
-		runtimeError, ok := errors.AsType[RuntimeError](err)
-		if ok {
-			i.errors.RuntimeError(runtimeError.Token, runtimeError.Msg)
-		} else {
-			i.errors.InternalError(err.Error())
+func (i *Interpreter) Interpret(statements []ast.Statement) {
+
+	for _, st := range statements {
+		err := i.executeStatement(st)
+		if err != nil {
+			runtimeError, ok := errors.AsType[RuntimeError](err)
+			if ok {
+				i.errors.RuntimeError(runtimeError.Token, runtimeError.Msg)
+			} else {
+				i.errors.InternalError(err.Error())
+			}
+			// return nil
 		}
-		return nil
 	}
 
-	return value
+	// return value
+}
+
+func (i *Interpreter) executeStatement(st ast.Statement) error {
+	switch s := st.(type) {
+	case *ast.ExpressionStatement:
+		return i.execExpressionStmt(s)
+	case *ast.PrintStatement:
+		return i.execPrintStmt(s)
+	case *ast.VarStatement:
+		return i.execVarStmt(s)
+
+	default:
+		return errors.New("invalid statement type")
+	}
+
+}
+
+func (i *Interpreter) execExpressionStmt(st *ast.ExpressionStatement) error {
+	_, err := i.evaluateExpression(st.Expr)
+	return err
+}
+
+func (i *Interpreter) execPrintStmt(st *ast.PrintStatement) error {
+	value, err := i.evaluateExpression(st.Expr)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(value)
+	return nil
+}
+
+func (i *Interpreter) execVarStmt(st *ast.VarStatement) error {
+	if st.Initializer != nil {
+		value, err := i.evaluateExpression(st.Initializer)
+		if err != nil {
+			return err
+		}
+		i.env.Define(st.Name.Lexeme, value)
+	} else {
+		i.env.Declare(st.Name.Lexeme)
+	}
+
+	return nil
 }
 
 func (i *Interpreter) evaluateExpression(expr ast.Expression) (any, error) {
 	switch e := expr.(type) {
-	case *ast.Literal:
+	case *ast.LiteralExpression:
 		return i.evalLiteralExpr(e)
-	case *ast.Grouping:
+	case *ast.GroupingExpression:
 		return i.evalGroupingExpr(e)
-	case *ast.Binary:
+	case *ast.BinaryExpression:
 		return i.evalBinaryExpr(e)
-	case *ast.Unary:
+	case *ast.UnaryExpression:
 		return i.evalUnaryExpr(e)
-	case *ast.Conditional:
+	case *ast.ConditionalExpression:
 		return i.evalConditionalExpr(e)
-	}
+	case *ast.VariableExpression:
+		return i.evalVariableExpr(e)
+	case *ast.AssignmentExpression:
+		return i.evalAssignmentExpr(e)
 
-	return nil, errors.New("invalid expression type")
+	default:
+		return nil, errors.New("invalid expression type")
+	}
 }
 
-func (i *Interpreter) evalLiteralExpr(expr *ast.Literal) (any, error) {
+func (i *Interpreter) evalAssignmentExpr(expr *ast.AssignmentExpression) (any, error) {
+	value, err := i.evaluateExpression(expr.Value)
+	if err != nil {
+		return nil, err
+	}
+	err = i.env.Assign(expr.Name, value)
+	if err != nil {
+		if errors.Is(err, environment.ErrUndeclared) {
+			return nil, rtError(expr.Name, "Variable is undeclared")
+		}
+		return nil, err
+	}
+
+	return value, nil
+}
+
+func (i *Interpreter) evalVariableExpr(expr *ast.VariableExpression) (any, error) {
+	value, err := i.env.Get(expr.Name)
+	if err != nil {
+		if errors.Is(err, environment.ErrUndefined) {
+			return nil, rtError(expr.Name, "Accessing undefined variable. Please assign value to it")
+		} else if errors.Is(err, environment.ErrUndeclared) {
+			return nil, rtError(expr.Name, "Accessing undeclared variable.")
+		}
+		// NOTE(koftamainee): propagating all possible internal errors
+		return nil, err
+	}
+	return value, nil
+}
+
+func (i *Interpreter) evalLiteralExpr(expr *ast.LiteralExpression) (any, error) {
 	return expr.Value, nil
 }
 
-func (i *Interpreter) evalGroupingExpr(expr *ast.Grouping) (any, error) {
+func (i *Interpreter) evalGroupingExpr(expr *ast.GroupingExpression) (any, error) {
 	return i.evaluateExpression(expr.Expr)
 }
 
-func (i *Interpreter) evalBinaryExpr(expr *ast.Binary) (any, error) {
+func (i *Interpreter) evalBinaryExpr(expr *ast.BinaryExpression) (any, error) {
 	left, err := i.evaluateExpression(expr.Left)
 	if err != nil {
 		return nil, err
@@ -198,7 +284,7 @@ func (i *Interpreter) evalBinaryExpr(expr *ast.Binary) (any, error) {
 
 }
 
-func (i *Interpreter) evalUnaryExpr(expr *ast.Unary) (any, error) {
+func (i *Interpreter) evalUnaryExpr(expr *ast.UnaryExpression) (any, error) {
 	value, err := i.evaluateExpression(expr.Operand)
 	if err != nil {
 		return nil, err
@@ -220,7 +306,7 @@ func (i *Interpreter) evalUnaryExpr(expr *ast.Unary) (any, error) {
 	}
 }
 
-func (i *Interpreter) evalConditionalExpr(expr *ast.Conditional) (any, error) {
+func (i *Interpreter) evalConditionalExpr(expr *ast.ConditionalExpression) (any, error) {
 	condition, err := i.evaluateExpression(expr.Condition)
 	if err != nil {
 		return nil, err

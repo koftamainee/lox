@@ -44,6 +44,7 @@ func runFile(path string, lox *lox.Lox) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		lox.ErrorReporter.InternalError(fmt.Errorf("failed to open file %s: %v", path, err).Error())
+		return
 	}
 	lox.Run(string(bytes))
 }

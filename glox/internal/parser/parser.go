@@ -27,13 +27,17 @@ func New(tokens []token.Token, errors errrp.ErrorReporter) Parser {
 	}
 }
 
-func (p *Parser) Parse() ast.Expression {
-	expr, err := p.expression()
-	if err != nil {
-		return nil
+func (p *Parser) Parse() []ast.Statement {
+	statements := make([]ast.Statement, 0)
+
+	for !p.isAtEnd() {
+		st := p.declaration()
+		if st != nil {
+			statements = append(statements, st)
+		}
 	}
 
-	return expr
+	return statements
 }
 
 func (p *Parser) sync() {
@@ -67,21 +71,23 @@ func (p *Parser) sync() {
 	}
 }
 
-func (p *Parser) binaryOpErrProd(op token.Type) (func() (ast.Expression, error), bool) {
+func (p *Parser) binaryOpErrProd(op token.Type) func() (ast.Expression, error) {
 	switch op {
 	case token.Comma:
-		return p.ternary, true
+		return p.assignment
+	case token.Equal:
+		return p.ternary
 	case token.BangEqual, token.EqualEqual:
-		return p.comparison, true
+		return p.comparison
 	case token.Greater, token.GreaterEqual, token.Less, token.LessEqual:
-		return p.term, true
+		return p.term
 	case token.Plus, token.Minus:
-		return p.factor, true
+		return p.factor
 	case token.Star, token.Slash:
-		return p.unary, true
+		return p.unary
 	}
 
-	return nil, false
+	return nil
 }
 
 func (p *Parser) match(types ...token.Type) bool {
@@ -123,12 +129,122 @@ func (p *Parser) previous() token.Token {
 	return p.Tokens[p.current-1]
 }
 
+func (p *Parser) declaration() ast.Statement {
+	if p.match(token.Var) {
+		st, err := p.varDeclaration()
+		if err != nil {
+			p.sync()
+			return nil
+		}
+		return st
+	}
+
+	st, err := p.statement()
+	if err != nil {
+		p.sync()
+		return nil
+	}
+	return st
+}
+
+func (p *Parser) varDeclaration() (ast.Statement, error) {
+	name, err := p.consume(token.Identifier, "Expect variable name.") // TODO
+	if err != nil {
+		return nil, err
+	}
+
+	var initializer ast.Expression
+
+	if p.match(token.Equal) {
+		initializer, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		initializer = nil
+	}
+
+	_, err = p.consume(token.Semicolon, "Expect semicolon at the end of variable declaration")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.VarStatement{
+		Name:        name,
+		Initializer: initializer,
+	}, nil
+}
+
+func (p *Parser) statement() (ast.Statement, error) {
+	if p.match(token.Print) {
+		return p.printStatement()
+	}
+
+	return p.expressionStatement()
+}
+
+func (p *Parser) printStatement() (ast.Statement, error) {
+	value, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.consume(token.Semicolon, "Expect semicolon at the end of print statement.")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.PrintStatement{
+		Expr: value,
+	}, nil
+}
+
+func (p *Parser) expressionStatement() (ast.Statement, error) {
+	value, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = p.consume(token.Semicolon, "Expect semicolon at the end of expression statement.")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.ExpressionStatement{
+		Expr: value,
+	}, nil
+}
+
 func (p *Parser) expression() (ast.Expression, error) {
 	return p.comma()
 }
 
 func (p *Parser) comma() (ast.Expression, error) {
-	return p.binaryExprLA(p.ternary, token.Comma)
+	return p.binaryExprLA(p.assignment, token.Comma)
+}
+
+func (p *Parser) assignment() (ast.Expression, error) {
+	expr, err := p.ternary()
+	if err != nil {
+		return nil, err
+	}
+
+	if p.match(token.Equal) {
+		equals := p.previous()
+		value, err := p.assignment()
+		if err != nil {
+			return nil, err
+		}
+
+		e, ok := expr.(*ast.VariableExpression)
+		if !ok {
+			return nil, p.error(equals, "Variable expected as an assignment target")
+		}
+
+		return &ast.AssignmentExpression{Name: e.Name, Value: value}, nil
+	}
+
+	return expr, nil
 }
 
 func (p *Parser) ternary() (ast.Expression, error) {
@@ -153,7 +269,7 @@ func (p *Parser) ternary() (ast.Expression, error) {
 			return nil, err
 		}
 
-		expr = &ast.Conditional{
+		expr = &ast.ConditionalExpression{
 			Condition: expr,
 			Then:      thenBranch,
 			Else:      elseBranch,
@@ -179,7 +295,7 @@ func (p *Parser) binaryExprLA(
 			return nil, err
 		}
 
-		expr = &ast.Binary{
+		expr = &ast.BinaryExpression{
 			Left:     expr,
 			Operator: operator,
 			Right:    right,
@@ -212,7 +328,7 @@ func (p *Parser) unary() (ast.Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &ast.Unary{
+		return &ast.UnaryExpression{
 			Operator: operator,
 			Operand:  operand,
 		}, nil
@@ -223,19 +339,23 @@ func (p *Parser) unary() (ast.Expression, error) {
 
 func (p *Parser) primary() (ast.Expression, error) {
 	if p.match(token.True) {
-		return &ast.Literal{Value: true}, nil
+		return &ast.LiteralExpression{Value: true}, nil
 	}
 
 	if p.match(token.False) {
-		return &ast.Literal{Value: false}, nil
+		return &ast.LiteralExpression{Value: false}, nil
 	}
 
 	if p.match(token.Nil) {
-		return &ast.Literal{Value: nil}, nil
+		return &ast.LiteralExpression{Value: nil}, nil
 	}
 
 	if p.match(token.Number, token.String) {
-		return &ast.Literal{Value: p.previous().Literal}, nil
+		return &ast.LiteralExpression{Value: p.previous().Literal}, nil
+	}
+
+	if p.match(token.Identifier) {
+		return &ast.VariableExpression{Name: p.previous()}, nil
 	}
 
 	if p.match(token.LeftParen) {
@@ -248,11 +368,11 @@ func (p *Parser) primary() (ast.Expression, error) {
 			return nil, err
 		}
 
-		return &ast.Grouping{Expr: expr}, nil
+		return &ast.GroupingExpression{Expr: expr}, nil
 	}
 
-	operand, ok := p.binaryOpErrProd(p.peek().TokenType)
-	if ok {
+	operand := p.binaryOpErrProd(p.peek().TokenType)
+	if operand != nil {
 		p.advance()
 		p.error(p.previous(), "Expect expression.")
 		return operand()

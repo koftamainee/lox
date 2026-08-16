@@ -39,15 +39,13 @@ func (l *Lox) Run(bytes string) {
 	tokens := lex.ScanTokens()
 
 	parse := parser.New(tokens, l.ErrorReporter)
-	expr := parse.Parse()
+	statements := parse.Parse()
 
 	if l.ErrorReporter.HadError {
 		return
 	}
 
-	value := l.interpreter.Interpret(expr)
-
-	fmt.Println(value)
+	l.interpreter.Interpret(statements)
 }
 
 func (r *LoxErrorReporter) Error(line int, message string) {
@@ -63,7 +61,7 @@ func (r *LoxErrorReporter) ErrorAt(t token.Token, message string) {
 }
 
 func (r *LoxErrorReporter) InternalError(message string) {
-	fmt.Fprintf(os.Stderr, "Glox internal error: %s", message)
+	fmt.Fprintf(os.Stderr, "Glox internal error: %s\n", message)
 
 	r.HadError = true
 }

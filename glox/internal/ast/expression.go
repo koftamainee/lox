@@ -11,46 +11,57 @@ type Expression interface {
 	String() string // for not-so-pretty printing
 }
 
-type Binary struct {
+type BinaryExpression struct {
 	Left     Expression
 	Operator token.Token
 	Right    Expression
 }
 
-type Grouping struct {
+type GroupingExpression struct {
 	Expr Expression
 }
 
-type Literal struct {
+type LiteralExpression struct {
 	Value any
 }
 
-type Unary struct {
+type UnaryExpression struct {
 	Operator token.Token
 	Operand  Expression
 }
 
-type Conditional struct {
+type ConditionalExpression struct {
 	Condition Expression
 	Then      Expression
 	Else      Expression
 }
 
-func (e *Binary) exprImpl()      {}
-func (e *Grouping) exprImpl()    {}
-func (e *Literal) exprImpl()     {}
-func (e *Unary) exprImpl()       {}
-func (e *Conditional) exprImpl() {}
+type VariableExpression struct {
+	Name token.Token
+}
 
-func (b *Binary) String() string {
+type AssignmentExpression struct {
+	Name  token.Token
+	Value Expression
+}
+
+func (e *BinaryExpression) exprImpl()      {}
+func (e *GroupingExpression) exprImpl()    {}
+func (e *LiteralExpression) exprImpl()     {}
+func (e *UnaryExpression) exprImpl()       {}
+func (e *ConditionalExpression) exprImpl() {}
+func (e *VariableExpression) exprImpl()    {}
+func (e *AssignmentExpression) exprImpl()  {}
+
+func (b *BinaryExpression) String() string {
 	return fmt.Sprintf("(%s %s %s)", b.Operator.Lexeme, b.Left.String(), b.Right.String())
 }
 
-func (g *Grouping) String() string {
+func (g *GroupingExpression) String() string {
 	return fmt.Sprintf("(%s)", g.Expr.String())
 }
 
-func (l *Literal) String() string {
+func (l *LiteralExpression) String() string {
 	if l.Value == nil {
 		return "nil"
 	}
@@ -67,14 +78,22 @@ func (l *Literal) String() string {
 	return res
 }
 
-func (u *Unary) String() string {
+func (u *UnaryExpression) String() string {
 	return fmt.Sprintf("(%s %s)", u.Operator.Lexeme, u.Operand.String())
 }
 
-func (c *Conditional) String() string {
+func (c *ConditionalExpression) String() string {
 	return fmt.Sprintf("if %s then %s else %s",
 		c.Condition.String(),
 		c.Then.String(),
 		c.Else.String(),
 	)
+}
+
+func (v *VariableExpression) String() string {
+	return fmt.Sprintf("var %s = %v", v.Name.Lexeme, v.Name.Literal)
+}
+
+func (v *AssignmentExpression) String() string {
+	return fmt.Sprintf("%s = %v", v.Name.Lexeme, v.Name.Literal)
 }

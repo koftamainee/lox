@@ -40,6 +40,19 @@ func (p *Parser) Parse() []ast.Statement {
 	return statements
 }
 
+func (p *Parser) ParseExpression() ast.Expression {
+	expr, err := p.expression()
+	if err != nil {
+		return nil
+	}
+	if !p.isAtEnd() {
+		_ = p.error(p.peek(), "Expect end of input after expression")
+		return nil
+	}
+
+	return expr
+}
+
 func (p *Parser) sync() {
 	p.advance()
 

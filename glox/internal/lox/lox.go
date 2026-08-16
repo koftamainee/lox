@@ -48,6 +48,27 @@ func (l *Lox) Run(bytes string) {
 	l.interpreter.Interpret(statements)
 }
 
+func (l *Lox) EvaluateExpression(bytes string) {
+	lex := lexer.New(bytes, l.ErrorReporter)
+	tokens := lex.ScanTokens()
+
+	parse := parser.New(tokens, l.ErrorReporter)
+	expr := parse.ParseExpression()
+
+	if l.ErrorReporter.HadError {
+		return
+	}
+
+	value := l.interpreter.Evaluate(expr)
+
+	if l.ErrorReporter.HadRuntimeError {
+		return
+	}
+
+	fmt.Println(value)
+
+}
+
 func (r *LoxErrorReporter) Error(line int, message string) {
 	r.report(line, "", message)
 }

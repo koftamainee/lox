@@ -43,11 +43,22 @@ func (i *Interpreter) Interpret(statements []ast.Statement) {
 			} else {
 				i.errors.InternalError(err.Error())
 			}
-			// return nil
 		}
 	}
+}
 
-	// return value
+func (i *Interpreter) Evaluate(expr ast.Expression) any {
+	value, err := i.evaluateExpression(expr)
+	if err != nil {
+		runtimeError, ok := errors.AsType[RuntimeError](err)
+		if ok {
+			i.errors.RuntimeError(runtimeError.Token, runtimeError.Msg)
+		} else {
+			i.errors.InternalError(err.Error())
+		}
+		return nil
+	}
+	return value
 }
 
 func (i *Interpreter) executeStatement(st ast.Statement) error {

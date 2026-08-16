@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/chzyer/readline"
 	"github.com/koftamainee/lox/glox/internal/lox"
@@ -65,7 +66,12 @@ func runPrompt(lox *lox.Lox) {
 			fmt.Println("see you soon~")
 			break
 		}
-		lox.Run(line)
+		trimmed := strings.Trim(line, " \t\r\n")
+		if strings.HasSuffix(trimmed, ";") {
+			lox.Run(trimmed)
+		} else {
+			lox.EvaluateExpression(trimmed)
+		}
 		lox.ErrorReporter.HadError = false
 		lox.ErrorReporter.HadRuntimeError = false
 	}

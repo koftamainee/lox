@@ -14,11 +14,11 @@ func defineGlobals(env *environment.Environment) {
 }
 
 type nativeFn struct {
-	call  func(*Interpreter, []any) any
+	call  func(*Interpreter, []any) (any, error)
 	arity int
 }
 
-func (f nativeFn) Call(interpreter *Interpreter, args []any) any {
+func (f nativeFn) Call(interpreter *Interpreter, args []any) (any, error) {
 	return f.call(interpreter, args)
 }
 
@@ -31,8 +31,8 @@ func (f nativeFn) String() string {
 }
 
 func clockFn() loxCallable {
-	call := func(interpreter *Interpreter, args []any) any {
-		return float64(time.Now().UnixMilli()) / 1000.0
+	call := func(interpreter *Interpreter, args []any) (any, error) {
+		return float64(time.Now().UnixMilli()) / 1000.0, nil
 	}
 	return &nativeFn{
 		call:  call,
@@ -41,13 +41,13 @@ func clockFn() loxCallable {
 }
 
 func inputFn() loxCallable {
-	call := func(interpreter *Interpreter, args []any) any {
+	call := func(interpreter *Interpreter, args []any) (any, error) {
 		scanner := bufio.NewScanner(os.Stdin)
 		if !scanner.Scan() {
-			return nil
+			return nil, nil
 		}
 
-		return scanner.Text()
+		return scanner.Text(), nil
 	}
 	return &nativeFn{
 		call:  call,

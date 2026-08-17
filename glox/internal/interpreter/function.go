@@ -17,8 +17,8 @@ type loxFunction struct {
 	Declaration *ast.FunStatement
 }
 
-func (f loxFunction) Call(interpreter *Interpreter, args []any) any {
-	env := environment.New(interpreter.globals)
+func (f loxFunction) Call(interpreter *Interpreter, args []any) (any, error) {
+	env := environment.New(interpreter.currentEnv)
 
 	for i, param := range f.Declaration.Params {
 		env.Define(param.Lexeme, args[i])
@@ -28,10 +28,14 @@ func (f loxFunction) Call(interpreter *Interpreter, args []any) any {
 
 	err := interpreter.execBlockStmt(&block, env)
 	if err != nil {
-		return nil // TODO: proper error handling and value return
+		ret, ok := err.(returnErr)
+		if ok {
+			return ret.Value, nil // returns something, no errors
+		}
+		return nil, err // returns nothing, error
 	}
 
-	return nil
+	return nil, nil // returns nothing, no errors
 }
 
 func (f loxFunction) Arity() int {

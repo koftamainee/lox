@@ -42,6 +42,11 @@ type WhileStatement struct {
 
 type BreakStatement struct{}
 
+type ReturnStatement struct {
+	ReturnKeyword token.Token
+	Value         Expression
+}
+
 func (e *ExpressionStatement) statementImpl() {}
 func (e *PrintStatement) statementImpl()      {}
 func (e *VarStatement) statementImpl()        {}
@@ -50,3 +55,4 @@ func (e *IfStatement) statementImpl()         {}
 func (e *WhileStatement) statementImpl()      {}
 func (e *BreakStatement) statementImpl()      {}
 func (e *FunStatement) statementImpl()        {}
+func (e *ReturnStatement) statementImpl()     {}

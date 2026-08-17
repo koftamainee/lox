@@ -85,10 +85,28 @@ func (i *Interpreter) executeStatement(st ast.Statement) error {
 		return i.execBreakStmt(s)
 	case *ast.FunStatement:
 		return i.execFunStmt(s)
+	case *ast.ReturnStatement:
+		return i.execReturnStmt(s)
 
 	default:
 		return errors.New("invalid statement type")
 	}
+}
+
+func (i *Interpreter) execReturnStmt(st *ast.ReturnStatement) error {
+	var retval any
+
+	if st.Value != nil {
+		var err error
+		retval, err = i.evaluateExpression(st.Value)
+		if err != nil {
+			return err
+		}
+	} else {
+		retval = nil
+	}
+
+	return returnErr{Value: retval}
 }
 
 func (i *Interpreter) execFunStmt(st *ast.FunStatement) error {
@@ -243,7 +261,7 @@ func (i *Interpreter) evalCallExpr(expr *ast.CallExpression) (any, error) {
 		return nil, i.error(expr.Paren, fmt.Sprintf("Expected %d arguments but got %d", expectedArgs, gotArgs))
 	}
 
-	return callable.Call(i, args), nil
+	return callable.Call(i, args)
 }
 
 func (i *Interpreter) evalLogicalExpr(expr *ast.LogicalExpression) (any, error) {

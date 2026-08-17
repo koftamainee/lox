@@ -185,23 +185,25 @@ func (p *Parser) funDeclaration(kind string) (ast.Statement, error) {
 	}
 
 	params := make([]token.Token, 0)
-	for {
-		if len(params) >= 255 {
-			err := p.error(p.peek(), "Can't have more than 255 parameters")
+	if !p.check(token.RightParen) {
+		for {
+			if len(params) >= 255 {
+				err := p.error(p.peek(), "Can't have more than 255 parameters")
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			param, err := p.consume(token.Identifier, "Expect parameter name")
 			if err != nil {
 				return nil, err
 			}
-		}
 
-		param, err := p.consume(token.Identifier, "Expect parameter name")
-		if err != nil {
-			return nil, err
-		}
+			params = append(params, param)
 
-		params = append(params, param)
-
-		if !p.match(token.Comma) {
-			break
+			if !p.match(token.Comma) {
+				break
+			}
 		}
 	}
 
@@ -268,12 +270,38 @@ func (p *Parser) statement() (ast.Statement, error) {
 	if p.match(token.Break) {
 		return p.breakStatement()
 	}
+	if p.match(token.Return) {
+		return p.returnStatement()
+	}
 
 	if p.match(token.LeftBrace) {
 		return p.blockStatement()
 	}
 
 	return p.expressionStatement()
+}
+
+func (p *Parser) returnStatement() (ast.Statement, error) {
+	returnKw := p.previous()
+
+	var retval ast.Expression
+
+	if !p.check(token.Semicolon) {
+		var err error
+		retval, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		retval = nil
+	}
+
+	_, err := p.consume(token.Semicolon, "Expect ';' after return statement")
+	if err != nil {
+		return nil, err
+	}
+
+	return &ast.ReturnStatement{Value: retval, ReturnKeyword: returnKw}, nil
 }
 
 func (p *Parser) breakStatement() (ast.Statement, error) {

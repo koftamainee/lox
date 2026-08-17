@@ -1,5 +1,5 @@
-#ifndef ALLOC_H_
-#define ALLOC_H_
+#ifndef CLOX_ALLOC_H_
+#define CLOX_ALLOC_H_
 
 #include <stddef.h>
 
@@ -17,4 +17,4 @@ typedef struct {
   void *ctx;
 } Allocator;
 
-#endif // ALLOC_H_
+#endif // CLOX_ALLOC_H_
